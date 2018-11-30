@@ -18,6 +18,9 @@
 """Create threads to run multiple enqueue ops."""
 import threading
 
+# !k
+import numpy as np
+
 from tensorflow.core.protobuf import queue_runner_pb2
 from tensorflow.python.framework import errors
 from tensorflow.python.framework import ops
@@ -193,6 +196,8 @@ class QueueRunner(object):
             for func in self.feed_dict_op:
               data = func()
               feed_dict_data = feed_dict_data + list(data)
+              # !k
+              feed_dict_data =  np.array(feed_dict_data)[..., np.newaxis].tolist()
             feed_dict = dict(zip(self.feed_dict_key, feed_dict_data))
             sess.run(enqueue_op, feed_dict)
           else:

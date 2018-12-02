@@ -1,3 +1,7 @@
+import numpy as np
+from osgeo import gdal
+import h5py
+
 import random
 import threading
 import logging
@@ -97,6 +101,48 @@ class DataFromFNames(Dataset):
         super().__init__()
         self.create_queue()
 
+
+        # !k norway 10m dtm tifs
+        '''
+        self.tifs = ['68m1_4_10m_z33.tif', '68m1_1_10m_z33.tif', '6800_4_10m_z33.tif',
+                     '6800_1_10m_z33.tif', '6801_4_10m_z33.tif', '6801_1_10m_z33.tif',
+                     '6802_4_10m_z33.tif', '6802_1_10m_z33.tif', '6803_4_10m_z33.tif',
+                     '68m1_3_10m_z33.tif', '68m1_2_10m_z33.tif', '6800_3_10m_z33.tif',
+                     '6800_2_10m_z33.tif', '6801_3_10m_z33.tif', '6801_2_10m_z33.tif',
+                     '6802_3_10m_z33.tif', '6802_2_10m_z33.tif', '6803_3_10m_z33.tif',
+                     '67m1_4_10m_z33.tif', '67m1_1_10m_z33.tif', '6700_4_10m_z33.tif',
+                     '6700_1_10m_z33.tif', '6701_4_10m_z33.tif', '6701_1_10m_z33.tif',
+                     '6702_4_10m_z33.tif', '6702_1_10m_z33.tif', '6703_4_10m_z33.tif',
+                     '67m1_3_10m_z33.tif', '67m1_2_10m_z33.tif', '6700_3_10m_z33.tif',
+                     '6700_2_10m_z33.tif', '6701_3_10m_z33.tif', '6701_2_10m_z33.tif',
+                     '6702_3_10m_z33.tif', '6702_2_10m_z33.tif', '6703_3_10m_z33.tif',
+                     '66m1_4_10m_z33.tif', '66m1_1_10m_z33.tif', '6600_4_10m_z33.tif',
+                     '6600_1_10m_z33.tif', '6601_4_10m_z33.tif', '6601_1_10m_z33.tif',
+                     '6602_4_10m_z33.tif', '6602_1_10m_z33.tif', '6603_4_10m_z33.tif',
+                     '66m1_3_10m_z33.tif', '66m1_2_10m_z33.tif', '6600_3_10m_z33.tif',
+                     '6600_2_10m_z33.tif', '6601_3_10m_z33.tif', '6601_2_10m_z33.tif',
+                     '6602_3_10m_z33.tif', '6602_2_10m_z33.tif', '6603_3_10m_z33.tif',
+                     '65m1_4_10m_z33.tif', '65m1_1_10m_z33.tif', '6500_4_10m_z33.tif',
+                     '6500_1_10m_z33.tif', '6501_4_10m_z33.tif', '6501_1_10m_z33.tif',
+                     '6502_4_10m_z33.tif', '6502_1_10m_z33.tif', '6503_4_10m_z33.tif']
+        for i in range(len(self.tifs)):
+            self.tifs[i] = 'data/norwaydtm10/' + self.tifs[i]
+        '''
+
+        # !k preload cities
+        src = "data/cities/oslo.tif"
+        self.oslo = cv2.imread(src, -1)
+        if len(self.oslo.shape) < 3:
+            self.oslo = self.oslo[..., np.newaxis]
+        src = "data/cities/bergen.tif"
+        self.bergen = cv2.imread(src, -1)
+        if len(self.bergen.shape) < 3:
+            self.bergen = self.bergen[..., np.newaxis]
+        src = "data/cities/trondheim.tif"
+        self.trondheim = cv2.imread(src, -1)
+        if len(self.trondheim.shape) < 3:
+            self.trondheim = self.trondheim[..., np.newaxis]
+
     def process_fnamelists(self, fnamelist):
         if isinstance(fnamelist, list):
             if isinstance(fnamelist[0], str):
@@ -148,43 +194,73 @@ class DataFromFNames(Dataset):
                 self._queue.size(), dtypes.float32) * (1. / capacity))
 
     def read_img(self, filename):
-        img = cv2.imread(filename)
+        # !k modify to accept .tif files
+        img = cv2.imread(filename, -1)
+        if len(img.shape) < 3:
+            img = img[..., np.newaxis]
         if img is None:
             logger.info('image is None, sleep this thread for 0.1s.')
             time.sleep(0.1)
             return img, True
         if self.fn_preprocess:
             img = self.fn_preprocess(img)
+        # !k
+        #print("data_from_fnames.next_batch : " + str(img.shape))
         return img, False
 
+    # !k
+    def read_tif(self, file):
+        ds = gdal.Open(file, gdal.GA_ReadOnly)
+        band = ds.GetRasterBand(1)
+        return band.ReadAsArray()
+
+    # !k
     def next_batch(self):
+
+        # norway land
+        #r = 256  # default window size is 256
+        #path = '/data/norwaydtm10/'
+        #f = h5py.File(path + 'norway.hdf5', 'r')
+
+		# norway cities
+        r = 512  # default window size is 512
+
         batch_data = []
+
         for _ in range(self.enqueue_size):
-            error = True
-            while error:
-                error = False
-                if random:
-                    filenames = random.choice(self.fnamelists_)
-                else:
-                    with READER_LOCK:
-                        filenames = self.fnamelists_[self.index]
-                        self.index = (self.index + 1) % self.file_length
-                imgs = []
-                random_h = None
-                random_w = None
-                for i in range(len(filenames)):
-                    img, error = self.read_img(filenames[i])
-                    if self.random_crop:
-                        img, random_h, random_w = np_random_crop(
-                            img, tuple(self.shapes[i][:-1]),
-                            random_h, random_w, align=False)  # use last rand
-                    else:
-                        img = cv2.resize(img, tuple(self.shapes[i][:-1][::-1]))
-                    imgs.append(img)
-            if self.return_fnames:
-                batch_data.append(imgs + list(filenames))
-            else:
-                batch_data.append(imgs)
+
+            # norway land
+            # random north-west region point
+            #n = random.randint(0, 5041 - r)
+            #w = random.randint(0, 5041 - r)
+            ## img =  self.read_tif(np.random.choice(self.tifs))[n:n+r, w:w+r]
+            #img = f.get(np.random.choice(self.tifs))[n:n+r, w:w+r]
+            #if len(img.shape) < 3:
+            #    img = img[..., np.newaxis]
+            ## print('!k data_from_fnames.py : new img with (0,0,0) = ' + str(img[0, 0, 0]))
+
+            # norway cities
+            ri =  random.randint(0,2)
+            if ri == 0:
+                hoff = np.random.randint(self.oslo.shape[0]-r)
+                woff = np.random.randint(self.oslo.shape[1]-r)
+                img = self.oslo[hoff:hoff+r, woff:woff+r, :]
+            if ri == 1:
+                hoff = np.random.randint(self.bergen.shape[0]-r)
+                woff = np.random.randint(self.bergen.shape[1]-r)
+                img = self.bergen[hoff:hoff+r, woff:woff+r, :]
+            if ri == 2:
+                hoff = np.random.randint(self.trondheim.shape[0]-r)
+                woff = np.random.randint(self.trondheim.shape[1]-r)
+                img = self.trondheim[hoff:hoff+r, woff:woff+r, :]
+
+            # normalize to 0-255 floats to integrate with existing image manipulation
+            img = cv2.normalize(img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_32F)
+            img = cv2.resize(img, tuple(self.shapes[0][:-1][::-1]))
+            batch_data.append([img])
+
+        # norway land
+        #f.close()
         return zip(*batch_data)
 
     def _maybe_download_and_extract(self):

@@ -1,5 +1,5 @@
 import numpy as np
-from osgeo import gdal
+#from osgeo import gdal
 #import h5py
 
 import random
@@ -209,10 +209,12 @@ class DataFromFNames(Dataset):
         return img, False
 
     # !k
+    '''
     def read_tif(self, file):
         ds = gdal.Open(file, gdal.GA_ReadOnly)
         band = ds.GetRasterBand(1)
         return band.ReadAsArray()
+    '''
 
     # !k
     def next_batch(self):

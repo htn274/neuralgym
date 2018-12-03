@@ -1,6 +1,6 @@
 import numpy as np
 from osgeo import gdal
-import h5py
+#import h5py
 
 import random
 import threading

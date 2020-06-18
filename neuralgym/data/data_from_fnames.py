@@ -153,6 +153,8 @@ class DataFromFNames(Dataset):
             print('image is None, sleep this thread for 0.1s.')
             time.sleep(0.1)
             return img, True
+        if len(img.shape) == 3:
+            img = img[:,:,0]
         if len(img.shape) < 3:
             img = img[..., np.newaxis]
         if self.fn_preprocess:
@@ -182,6 +184,7 @@ class DataFromFNames(Dataset):
                             random_h, random_w, align=False)  # use last rand
                     else:
                         img = cv2.resize(img, tuple(self.shapes[i][:-1][::-1]))
+                    img = cv2.normalize(img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_32F) 
                     imgs.append(img)
             if self.return_fnames:
                 batch_data.append(imgs + list(filenames))
